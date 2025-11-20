@@ -1,61 +1,76 @@
 plugins {
-	id 'java'
+    // FIX: Change 'java' to 'java-library' to enable the 'api' and 'implementation' configurations.
+    id 'java-library'
 }
 
 repositories {
-	mavenLocal()
-	maven {
-		url = 'https://repo.runelite.net'
-		content {
-			includeGroupByRegex("net\\.runelite.*")
-		}
-	}
-	mavenCentral()
+    mavenLocal()
+    maven {
+        // This repository hosts the RuneLite API and other required dependencies
+        url = 'https://repo.runelite.net'
+        content {
+            includeGroupByRegex("net\\.runelite.*")
+        }
+    }
+    mavenCentral()
 }
 
-def runeLiteVersion = 'latest.release'
+// FIX: Setting to a stable, older version (1.8.0) that is guaranteed to exist
+// in the RuneLite Maven repository to resolve dependency resolution issues.
+def runeLiteVersion = '1.8.0'
 
 dependencies {
-	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
+    // RuneLite dependencies should use the 'api' configuration
+    // The 'api' configuration is now available with the 'java-library' plugin.
+    api 'net.runelite:client:' + runeLiteVersion
 
-	compileOnly 'org.projectlombok:lombok:1.18.30'
-	annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    // Lombok dependency for @Data and constructors (used in FilterEntry.java)
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
 
-	testImplementation 'junit:junit:4.12'
-	testImplementation group: 'net.runelite', name:'client', version: runeLiteVersion
-	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
+    // GSON is needed for JSON serialization/deserialization (used in NeoPlugin.java)
+    implementation 'com.google.code.gson:gson:2.10.1'
 }
 
 group = 'com.example'
 version = '1.0-SNAPSHOT'
 
 tasks.withType(JavaCompile).configureEach {
-	options.encoding = 'UTF-8'
-	options.release.set(11)
+    options.encoding = 'UTF-8'
+    // Target Java 11, which is the standard for RuneLite plugins
+    options.release.set(11)
 }
 
+// Configuration for building an 'all-in-one' JAR (shadowJar)
 tasks.register('shadowJar', Jar) {
-	dependsOn configurations.testRuntimeClasspath
-	manifest {
-		attributes('Main-Class': 'com.example.ExamplePluginTest', 'Multi-Release': true)
-	}
+    // Include test runtime dependencies to ensure all necessary classes are bundled
+    dependsOn configurations.testRuntimeClasspath
 
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-	from sourceSets.main.output
-	from sourceSets.test.output
-	from {
-		configurations.testRuntimeClasspath.collect { file ->
-			file.isDirectory() ? file : zipTree(file)
-		}
-	}
+    // Set the Main-Class attribute in the manifest, typically for testing setup
+    manifest {
+        attributes('Main-Class': 'com.example.ExamplePluginTest', 'Multi-Release': true)
+    }
 
-	exclude 'META-INF/INDEX.LIST'
-	exclude 'META-INF/*.SF'
-	exclude 'META-INF/*.DSA'
-	exclude 'META-INF/*.RSA'
-	exclude '**/module-info.class'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from sourceSets.main.output
+    // Include test outputs if you are running tests that need to be in the final JAR
+    from sourceSets.test.output
 
-	group = BasePlugin.BUILD_GROUP
-	archiveClassifier.set('shadow')
-	archiveFileName.set("${rootProject.name}-${project.version}-all.jar")
+    // Unpack all dependencies into the JAR
+    from {
+        configurations.testRuntimeClasspath.collect { file ->
+            file.isDirectory() ? file : zipTree(file)
+        }
+    }
+
+    // Exclude redundant files from dependencies
+    exclude 'META-INF/INDEX.LIST'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+    exclude '**/module-info.class'
+
+    group = BasePlugin.BUILD_GROUP
+    archiveClassifier.set('shadow')
+    archiveFileName.set("${rootProject.name}-${project.version}-all.jar")
 }
